@@ -102,7 +102,7 @@ The backend features a fully modeled relational schema in PostgreSQL, auto-gener
 3. **Database Configuration:**
    Create a `.env` file in the `backend/` folder (an example config is already set up):
    ```env
-   DATABASE_URL=postgresql://postgres:yatin06@localhost:5432/dbms_project
+   DATABASE_URL=postgresql://postgres:password@localhost:5432/dbms_project
    ```
    *Replace the credentials above with your local PostgreSQL server configuration.*
 

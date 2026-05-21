@@ -21,7 +21,7 @@ import { apiService, Member } from '@/services/api';
 
 export default function AddExpenseScreen() {
   const router = useRouter();
-  const { groupId } = useLocalSearchParams<{ groupId: string }>();
+  const { groupId, expenseId } = useLocalSearchParams<{ groupId: string; expenseId?: string }>();
   const scheme = useColorScheme() || 'dark';
   const colors = Colors[scheme === 'unspecified' ? 'dark' : scheme];
 
@@ -74,26 +74,36 @@ export default function AddExpenseScreen() {
   };
 
   useEffect(() => {
-    const fetchMembers = async () => {
+    const fetchData = async () => {
       if (!groupId) return;
       try {
-        const data = await apiService.getMembers(groupId);
-        setMembers(data);
-        if (data.length > 0) {
-          // Set first member as default payer
-          setPayerId(data[0].id);
-          // Set everyone as selected by default for custom splits
-          setSelectedSplitMemberIds(data.map((m) => m.id));
+        const membersData = await apiService.getMembers(groupId);
+        setMembers(membersData);
+
+        if (expenseId) {
+          const expenseData = await apiService.getExpense(groupId, expenseId);
+          setDescription(expenseData.description);
+          setAmount(parseFloat(expenseData.amount).toString());
+          setPayerId(expenseData.payer_id);
+          
+          const splitIds = expenseData.splits.map((s) => s.member_id);
+          setSelectedSplitMemberIds(splitIds);
+          setSplitWithAll(splitIds.length === membersData.length);
+        } else {
+          if (membersData.length > 0) {
+            setPayerId(membersData[0].id);
+            setSelectedSplitMemberIds(membersData.map((m) => m.id));
+          }
         }
       } catch (err) {
         console.error(err);
-        Alert.alert('Error', 'Failed to retrieve group participants.');
+        Alert.alert('Error', 'Failed to retrieve group participants or expense details.');
       } finally {
         setLoading(false);
       }
     };
-    fetchMembers();
-  }, [groupId]);
+    fetchData();
+  }, [groupId, expenseId]);
 
   const handleToggleMember = (memberId: string) => {
     if (selectedSplitMemberIds.includes(memberId)) {
@@ -132,12 +142,21 @@ export default function AddExpenseScreen() {
 
     setSubmitting(true);
     try {
-      await apiService.createExpense(groupId!, {
-        description: trimmedDesc,
-        amount: parsedAmt,
-        payer_id: payerId,
-        split_member_ids: splitIds,
-      });
+      if (expenseId) {
+        await apiService.updateExpense(groupId!, expenseId, {
+          description: trimmedDesc,
+          amount: parsedAmt,
+          payer_id: payerId,
+          split_member_ids: splitIds,
+        });
+      } else {
+        await apiService.createExpense(groupId!, {
+          description: trimmedDesc,
+          amount: parsedAmt,
+          payer_id: payerId,
+          split_member_ids: splitIds,
+        });
+      }
 
       setSuccessDescription(trimmedDesc);
       setSuccessAmount(parsedAmt);
@@ -146,7 +165,7 @@ export default function AddExpenseScreen() {
       triggerSplitAnimation();
     } catch (err) {
       console.error(err);
-      Alert.alert('Error', 'Failed to save expense to FastAPI backend.');
+      Alert.alert('Error', `Failed to ${expenseId ? 'update' : 'save'} expense.`);
     } finally {
       setSubmitting(false);
     }
@@ -393,7 +412,7 @@ export default function AddExpenseScreen() {
           >
             <Text style={styles.backText}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Add Expense</Text>
+          <Text style={styles.headerTitle}>{expenseId ? 'Edit Expense' : 'Add Expense'}</Text>
         </View>
 
         <ScrollView style={styles.form} keyboardShouldPersistTaps="handled">
@@ -493,7 +512,7 @@ export default function AddExpenseScreen() {
             {submitting ? (
               <ActivityIndicator color="#ffffff" size="small" />
             ) : (
-              <Text style={styles.submitText}>Save Expense</Text>
+              <Text style={styles.submitText}>{expenseId ? 'Update Expense' : 'Save Expense'}</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -527,9 +546,9 @@ export default function AddExpenseScreen() {
             >
               <Text style={styles.splitIconText}>📊</Text>
             </Animated.View>
-            <Text style={styles.overlayTitle}>Expense Split! 💸</Text>
+            <Text style={styles.overlayTitle}>{expenseId ? 'Expense Updated! ✏️' : 'Expense Split! 💸'}</Text>
             <Text style={styles.overlayText}>
-              Logged <Text style={{ fontWeight: 'bold', color: colors.accent }}>"{successDescription}"</Text> for{' '}
+              {expenseId ? 'Updated' : 'Logged'} <Text style={{ fontWeight: 'bold', color: colors.accent }}>"{successDescription}"</Text> for{' '}
               <Text style={{ fontWeight: 'bold', color: colors.success }}>₹{successAmount.toFixed(2)}</Text>.{'\n'}
               Equally split among{' '}
               <Text style={{ fontWeight: 'bold', color: colors.accent }}>{successSplitCount}</Text> members (₹

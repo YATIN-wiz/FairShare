@@ -60,6 +60,18 @@ def get_group(group_id: UUID, db: Session = Depends(get_db)):
     return db_group
 
 
+@app.delete("/api/groups/{group_id}")
+def delete_group(group_id: UUID, db: Session = Depends(get_db)):
+    db_group = db.query(models.Group).filter(models.Group.id == group_id).first()
+    if not db_group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    db.delete(db_group)
+    db.commit()
+    return {"message": "Group successfully deleted"}
+
+
+
 # ----------------------------------------------------
 # MEMBER ENDPOINTS
 # ----------------------------------------------------
@@ -165,6 +177,88 @@ def create_expense(group_id: UUID, expense: schemas.ExpenseCreate, db: Session =
 @app.get("/api/groups/{group_id}/expenses", response_model=List[schemas.ExpenseResponse])
 def get_expenses(group_id: UUID, db: Session = Depends(get_db)):
     return db.query(models.Expense).filter(models.Expense.group_id == group_id).order_by(models.Expense.created_at.desc()).all()
+
+
+@app.get("/api/groups/{group_id}/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
+def get_expense(group_id: UUID, expense_id: UUID, db: Session = Depends(get_db)):
+    db_expense = db.query(models.Expense).filter(
+        models.Expense.id == expense_id,
+        models.Expense.group_id == group_id
+    ).first()
+    if not db_expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    return db_expense
+
+
+@app.put("/api/groups/{group_id}/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
+def update_expense(group_id: UUID, expense_id: UUID, expense: schemas.ExpenseCreate, db: Session = Depends(get_db)):
+    db_group = db.query(models.Group).filter(models.Group.id == group_id).first()
+    if not db_group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    db_expense = db.query(models.Expense).filter(
+        models.Expense.id == expense_id,
+        models.Expense.group_id == group_id
+    ).first()
+    if not db_expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    # Validate payer
+    payer = db.query(models.Member).filter(models.Member.id == expense.payer_id, models.Member.group_id == group_id).first()
+    if not payer:
+        raise HTTPException(status_code=400, detail="Invalid payer_id for this group")
+
+    if not expense.split_member_ids:
+        raise HTTPException(status_code=400, detail="Must split with at least one person")
+
+    # Validate split members
+    for mid in expense.split_member_ids:
+        exists = db.query(models.Member).filter(models.Member.id == mid, models.Member.group_id == group_id).first()
+        if not exists:
+            raise HTTPException(status_code=400, detail=f"Member ID {mid} not found in this group")
+
+    # Update primary expense details
+    db_expense.description = expense.description
+    db_expense.amount = expense.amount
+    db_expense.payer_id = expense.payer_id
+    
+    # Remove existing split entries
+    db.query(models.ExpenseSplit).filter(models.ExpenseSplit.expense_id == expense_id).delete(synchronize_session=False)
+
+    # Calculate splits equally
+    split_count = len(expense.split_member_ids)
+    split_share = expense.amount / Decimal(split_count)
+    
+    # Round split share to 2 decimal places
+    split_share = split_share.quantize(Decimal("0.01"))
+
+    # Add new split entries
+    for mid in expense.split_member_ids:
+        db_split = models.ExpenseSplit(
+            expense_id=db_expense.id,
+            member_id=mid,
+            amount=split_share
+        )
+        db.add(db_split)
+
+    db.commit()
+    db.refresh(db_expense)
+    return db_expense
+
+
+@app.delete("/api/groups/{group_id}/expenses/{expense_id}")
+def delete_expense(group_id: UUID, expense_id: UUID, db: Session = Depends(get_db)):
+    db_expense = db.query(models.Expense).filter(
+        models.Expense.id == expense_id,
+        models.Expense.group_id == group_id
+    ).first()
+    if not db_expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    
+    db.delete(db_expense)
+    db.commit()
+    return {"message": "Expense successfully deleted"}
+
 
 
 # ----------------------------------------------------

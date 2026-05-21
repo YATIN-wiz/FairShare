@@ -95,6 +95,12 @@ export const apiService = {
     return res.data;
   },
 
+  deleteGroup: async (groupId: string): Promise<{ message: string }> => {
+    const res = await client.delete<{ message: string }>(`/groups/${groupId}`);
+    return res.data;
+  },
+
+
   // Member Operations
   getMembers: async (groupId: string): Promise<Member[]> => {
     const res = await client.get<Member[]>(`/groups/${groupId}/members`);
@@ -112,11 +118,30 @@ export const apiService = {
     return res.data;
   },
 
+  getExpense: async (groupId: string, expenseId: string): Promise<Expense> => {
+    const res = await client.get<Expense>(`/groups/${groupId}/expenses/${expenseId}`);
+    return res.data;
+  },
+
   createExpense: async (
     groupId: string,
     data: { description: string; amount: number; payer_id: string; split_member_ids: string[] }
   ): Promise<Expense> => {
     const res = await client.post<Expense>(`/groups/${groupId}/expenses`, data);
+    return res.data;
+  },
+
+  updateExpense: async (
+    groupId: string,
+    expenseId: string,
+    data: { description: string; amount: number; payer_id: string; split_member_ids: string[] }
+  ): Promise<Expense> => {
+    const res = await client.put<Expense>(`/groups/${groupId}/expenses/${expenseId}`, data);
+    return res.data;
+  },
+
+  deleteExpense: async (groupId: string, expenseId: string): Promise<{ message: string }> => {
+    const res = await client.delete<{ message: string }>(`/groups/${groupId}/expenses/${expenseId}`);
     return res.data;
   },
 

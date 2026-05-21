@@ -117,6 +117,90 @@ export default function GroupDetailScreen() {
     }
   };
 
+  const handleDeleteGroup = () => {
+    const performDelete = async () => {
+      if (!id) return;
+      try {
+        setLoading(true);
+        await apiService.deleteGroup(id);
+        if (Platform.OS === 'web') {
+          window.alert('Group/Trip successfully deleted!');
+        } else {
+          Alert.alert('Success', 'Group/Trip successfully deleted!');
+        }
+        router.replace('/');
+      } catch (err) {
+        console.error(err);
+        Alert.alert('Error', 'Failed to delete group/trip.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmDelete = window.confirm(
+        'WARNING: Are you absolutely sure you want to delete this group/trip? This will permanently delete all participants, expenses, splits, and settlements. This action CANNOT be undone!'
+      );
+      if (confirmDelete) {
+        performDelete();
+      }
+    } else {
+      Alert.alert(
+        'Delete Group/Trip',
+        'WARNING: Are you absolutely sure you want to delete this group/trip? This will permanently delete all participants, expenses, splits, and settlements. This action CANNOT be undone!',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete Permanently',
+            style: 'destructive',
+            onPress: performDelete,
+          },
+        ]
+      );
+    }
+  };
+
+  const handleDeleteExpense = (expenseId: string) => {
+    const performDelete = async () => {
+      if (!id) return;
+      try {
+        setLoading(true);
+        await apiService.deleteExpense(id, expenseId);
+        if (Platform.OS === 'web') {
+          window.alert('Expense successfully deleted!');
+        } else {
+          Alert.alert('Success', 'Expense successfully deleted!');
+        }
+        loadAllData();
+      } catch (err) {
+        console.error(err);
+        Alert.alert('Error', 'Failed to delete expense.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmDelete = window.confirm('Are you sure you want to delete this expense?');
+      if (confirmDelete) {
+        performDelete();
+      }
+    } else {
+      Alert.alert(
+        'Delete Expense',
+        'Are you sure you want to delete this expense?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: performDelete,
+          },
+        ]
+      );
+    }
+  };
+
   const getMemberName = (memberId: string) => {
     return members.find((m) => m.id === memberId)?.name || 'Unknown';
   };
@@ -166,6 +250,21 @@ export default function GroupDetailScreen() {
       borderRadius: 4,
     },
     resetText: {
+      color: colors.error,
+      fontSize: 11,
+      fontWeight: '900',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    deleteGroupButton: {
+      backgroundColor: 'rgba(248, 113, 113, 0.08)',
+      borderWidth: 2,
+      borderColor: colors.error,
+      paddingHorizontal: Spacing.three,
+      paddingVertical: Spacing.one * 1.5,
+      borderRadius: 4,
+    },
+    deleteGroupText: {
       color: colors.error,
       fontSize: 11,
       fontWeight: '900',
@@ -287,6 +386,43 @@ export default function GroupDetailScreen() {
       fontWeight: 'bold',
       color: colors.text,
       marginTop: Spacing.half,
+    },
+    expenseActionsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: Spacing.three,
+      marginTop: Spacing.three,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: Spacing.two * 1.5,
+    },
+    actionButton: {
+      paddingHorizontal: Spacing.three,
+      paddingVertical: Spacing.one * 1.5,
+      borderRadius: 4,
+      borderWidth: 2,
+    },
+    editButton: {
+      borderColor: colors.accent,
+      backgroundColor: 'rgba(127, 109, 242, 0.08)',
+    },
+    editButtonText: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: '900',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    deleteButton: {
+      borderColor: colors.error,
+      backgroundColor: 'rgba(248, 113, 113, 0.08)',
+    },
+    deleteButtonText: {
+      color: colors.error,
+      fontSize: 11,
+      fontWeight: '900',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
     },
     debtRow: {
       flexDirection: 'row',
@@ -428,9 +564,14 @@ export default function GroupDetailScreen() {
             {group?.name || 'Group Details'}
           </Text>
         </View>
-        <TouchableOpacity style={styles.resetButton} onPress={handleResetRecord}>
-          <Text style={styles.resetText}>Settle & Reset</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: Spacing.two }}>
+          <TouchableOpacity style={styles.resetButton} onPress={handleResetRecord}>
+            <Text style={styles.resetText}>Reset</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.deleteGroupButton} onPress={handleDeleteGroup}>
+            <Text style={styles.deleteGroupText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Quick stats panel */}
@@ -511,6 +652,25 @@ export default function GroupDetailScreen() {
                     {item.splits.length === members.length ? 'Everyone' : `${item.splits.length} people`}
                   </Text>
                 </View>
+              </View>
+              <View style={styles.expenseActionsRow}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.editButton]}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/add-expense',
+                      params: { groupId: id, expenseId: item.id },
+                    })
+                  }
+                >
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.deleteButton]}
+                  onPress={() => handleDeleteExpense(item.id)}
+                >
+                  <Text style={styles.deleteButtonText}>Delete</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
